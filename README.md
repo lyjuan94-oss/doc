@@ -1,206 +1,349 @@
-# SonarQube Advanced Security Guide
+# SonarQube Advanced Security â€” Feature Guide
 
-An existing SonarQube base setup already provides core code quality and security capabilities such as static analysis, taint analysis within first-party code, secrets detection, and infrastructure-as-code scanning.[1] Advanced Security extends that baseline into software supply chain security by adding software composition analysis (SCA), malicious package detection, license policy enforcement, SBOM visibility, and deeper taint analysis across third-party libraries.[1][2]
+This document covers the new capabilities introduced by SonarQube Advanced Security on top of an existing Enterprise base deployment. Each section explains what the feature does, why it matters, how to use it from the SonarQube dashboard, and what prerequisites apply. Image placeholders mark where screenshots should be inserted.
 
-The practical shift is that analysis no longer stops at the repository boundary. Teams can now evaluate dependency risk, transitive packages, and library interaction paths in the same platform where they already review code quality and security issues.[1][3]
+---
 
-## What Advanced Security Adds
+## Prerequisites
 
-| Capability | Base SonarQube | Advanced Security | Why it matters |
-|---|---|---|---|
-| First-party static analysis | Yes | Yes | Keeps core code quality and security checks in place.[3] |
-| Taint analysis in own code | Yes | Yes | Finds insecure data flow paths in application code.[3] |
-| Software Composition Analysis (SCA) | No | Yes | Detects dependency vulnerabilities, malicious packages, and license issues.[1][2] |
-| Dependency risk workflow | No | Yes | Adds a dedicated Dependency Risks view with triage and assignment flows.[1] |
-| License policy enforcement | No | Yes | Blocks prohibited or risky licenses according to policy.[1][2] |
-| SBOM export and dependency inventory | No | Yes | Improves software supply chain visibility and audit readiness.[4][1] |
-| Advanced SAST across dependencies | No | Yes | Traces data flow through third-party libraries to uncover hidden vulnerabilities.[3] |
-| Dependency-aware quality gates | No | Yes | Fails builds when dependency risks exceed policy thresholds.[1] |
+Advanced Security is available exclusively as a paid add-on on top of SonarQube Server **Enterprise Edition or Data Center Edition**, starting at version **2025.3**. Any version in the 9.9.x or 10.x branch does not include this functionality regardless of license.
 
-## Advanced SAST
+| Requirement | Detail |
+|---|---|
+| Edition | Enterprise or Data Center |
+| Minimum version | 2025.3 |
+| Additional license | Yes â€” Advanced Security is a separate add-on |
+| Outbound internet from server | Yes â€” HTTPS to `api.sonarcloud.io` (required for SCA) |
+| Outbound internet from CI/CD agents | No change needed |
+| Advanced SAST internet requirement | None â€” runs locally in the scanner |
 
-Advanced SAST is the capability that extends Sonar’s taint analysis beyond first-party code and into third-party open-source libraries so the analysis can follow data across code boundaries.[3] This closes the classic blind spot of traditional static analysis, where the tool can inspect the application code but treats external libraries as opaque black boxes.[3]
+---
 
-This matters because many real attack paths are not visible until the full interaction between application code and dependencies is considered. Advanced SAST is designed to uncover deeply hidden vulnerabilities that arise specifically from how the application uses external libraries rather than from the application code alone.[3]
+## What Changes After Enabling Advanced Security
 
-### What teams can do with it
-
-- Detect data flows from untrusted input into sensitive sinks even when the path crosses library boundaries.[3]
-- Improve prioritization by surfacing exploitable security findings earlier in pull requests and CI/CD workflows.[3]
-- Reduce blind spots that a base-only SAST deployment would leave uncovered.[3]
-
-### Why use it
-
-- It reveals issues that standard repository-only analysis can miss.[3]
-- It supports shift-left security by surfacing findings before deployment.[3]
-- It keeps the workflow integrated into SonarQube rather than sending developers to a separate security product.[3]
-
-## Software Composition Analysis
-
-Software Composition Analysis identifies and evaluates the open-source components used by a project.[2] In SonarQube Advanced Security, the SCA workflow is centered on the **Dependency Risks** area, where risks can be reviewed across projects, applications, and portfolios.[1]
-
-Each dependency risk is classified as a **Vulnerability**, **Malicious package**, or **Prohibited license**.[1] The interface supports filtering by severity, dependency type, dependency scope, package manager, assignee, and status, which makes it possible to run a repeatable triage process at scale.[1]
-
-### What teams can do with SCA
-
-- Detect known vulnerabilities in direct and transitive dependencies.[1][2]
-- Flag malicious packages in the dependency tree.[1]
-- Enforce license compliance using license profiles and policies.[1]
-- Assign dependency risks to owners, track review state, and document accepted or safe decisions with justification.[1]
-
-### Why use it
-
-- Modern applications rely heavily on third-party packages, so dependency risk is part of the application risk surface.[2]
-- SCA gives visibility into legal and compliance exposure, not just security exposure.[2][1]
-- It creates an auditable workflow for security and development teams to collaborate on supply chain risk.[1]
-
-## Dependency Risk Model
-
-Advanced Security introduces a structured dependency risk lifecycle. New findings start as **Open**, then can be moved to **Confirmed**, **Accepted**, or **Safe**, with justification required for safe decisions.[1]
-
-Severity is also policy-aware. For vulnerability risks, Sonar combines CVSS severity, CISA KEV status, and EPSS exploitability indicators to prioritize remediation, while malicious packages are always treated as **Blocker** severity.[1]
-
-### Practical meaning of each risk type
-
-| Risk type | Meaning | Typical action |
+| Capability | Base SonarQube | Advanced Security |
 |---|---|---|
-| Vulnerability | A third-party dependency is affected by a publicly reported vulnerability.[1] | Upgrade to a complete or partial fix version after validating impact.[1] |
-| Malicious package | The dependency is known to be malicious.[1] | Remove immediately and treat affected machines or builds as potentially compromised.[1] |
-| Prohibited license | The dependency license violates the configured license profile or policy.[1] | Replace the package or revise policy if justified.[1] |
+| SAST on first-party code | âœ… | âœ… |
+| Secrets detection | âœ… | âœ… |
+| IaC scanning | âœ… | âœ… |
+| Basic taint analysis (within own code) | âœ… | âœ… |
+| SCA â€” open source dependency vulnerabilities | âŒ | âœ… |
+| Malicious package detection | âŒ | âœ… |
+| License management + SBOM | âŒ | âœ… |
+| Advanced SAST across third-party libraries | âŒ | âœ… |
+| Dependency-aware Quality Gates | âŒ | âœ… |
+| Compliance reports including SCA data | âŒ | âœ… (2026.2+) |
 
-## SBOM and Dependency Inventory
+---
 
-Advanced Security improves software supply chain visibility by inventorying dependencies, including transitive dependencies, and supporting standardized export formats for downstream use.[4][5] SonarQube Cloud examples documented by the community show exports in CycloneDX and SPDX 2.3 formats in either JSON or XML, which aligns with common enterprise SBOM workflows.[5]
+## Feature 1 â€” Software Composition Analysis (SCA)
 
-An SBOM, or Software Bill of Materials, is useful because it gives teams a traceable list of components present in a build or application release.[4][5] That supports audits, incident response, vulnerability impact analysis, and regulatory or customer reporting.[4]
+### What it does
 
-### What teams can do with SBOM-related capabilities
+SCA scans all open-source dependencies in the project â€” both direct and transitive â€” and cross-references them against continuously updated vulnerability databases (CVE/NVD). Results appear in a dedicated **Dependency Risks** panel that is separate from the existing Issues view.
 
-- Maintain a current inventory of dependencies, including transitive packages.[5]
-- Export dependency information in standardized formats for audit or sharing workflows.[5]
-- Use the inventory to determine whether new CVEs or policy changes affect released software.[4][1]
+### Why it matters
 
-### Why use it
+A large portion of any modern application is composed of third-party packages. Each dependency is a potential attack surface. SCA automates the surveillance of that risk, surfaces prioritized findings directly in developer workflows, and provides actionable remediation guidance for each finding.
 
-- It shortens the time needed to answer “where are we using this vulnerable package?”.[4][5]
-- It supports security reviews and customer evidence requests.[4]
-- It strengthens software supply chain governance without introducing a separate inventory tool.[4][5]
+### How it works technically
 
-## License Profiles and Policies
+When the scanner runs, it collects the project's dependency manifest files (`pom.xml`, `package.json`, `requirements.txt`, `go.mod`, `*.csproj`, etc.) and lock files. These are packaged and sent via HTTPS to Sonar's cloud service (`api.sonarcloud.io`), which processes the dependency analysis and returns results to the SonarQube server. No source code is transmitted.
 
-One of the most practical additions in Advanced Security is license policy management. Instance administrators can configure license profiles and policies to define which licenses are allowed or prohibited for project dependencies.[1]
+### Supported ecosystems
 
-This turns open-source license review into an enforceable control instead of a manual spreadsheet exercise. When a dependency violates the selected license policy, it appears as a prohibited license risk in the dependency workflow.[1]
+Java (Maven, Gradle), Kotlin, Scala, JavaScript/TypeScript (npm, yarn), Python (pip), C# (NuGet), Go, Rust, Ruby, PHP.
 
-### Why this matters
+### How to use it from the dashboard
 
-- It reduces legal and compliance exposure from incompatible open-source licenses.[2][1]
-- It provides consistent rules across teams instead of ad hoc judgment calls.[1]
-- It enables earlier feedback during development rather than discovering license conflicts late in a release cycle.[2][1]
+#### Viewing dependency risks
 
-## Quality Gates for Dependency Risks
+1. Open a **Project** in SonarQube.
+2. Click the **Dependency Risks** tab in the top navigation.
+3. Use the left sidebar filters to narrow results by:
+   - **Risk type**: Vulnerability, Malicious package, Prohibited license
+   - **Risk severity**: Blocker, High, Medium, Low, Info
+   - **Dependency type**: Direct or Transitive
+   - **Dependency scope**: Production or Development
+   - **Package manager**, **Status**, **Assignee**
 
-After enabling Advanced Security, dependency risks should be incorporated into quality gates; otherwise, the new findings are visible but not automatically enforced.[1] SonarQube supports quality gate conditions for **Prohibited license**, **Malicious package**, and **Vulnerability** risk types, for both new and overall code, and allows thresholds based on count or severity.[1]
+> ðŸ“¸ **[INSERT SCREENSHOT: Dependency Risks tab â€” project overview with filter sidebar visible]**
 
-This is the control point that turns Advanced Security into an operational safeguard. In practice, it is what allows a pipeline or branch policy to act as a go/no-go gate rather than a passive dashboard.[1]
+#### Reading a risk detail card
 
-### Recommended approach
+Each risk card in the list shows:
+- Descriptive title of the risk
+- Risk type and severity badge
+- Current status (Open, Confirmed, Accepted, Safe)
+- Assignee
+- Affected dependency name and version
+- Time since first detected
 
-- Create a custom quality gate dedicated to Advanced Security adoption.[1]
-- Fail builds on any malicious package finding.[1]
-- Set conservative thresholds for new dependency vulnerabilities and prohibited licenses, then tune based on observed signal quality.[1]
+> ðŸ“¸ **[INSERT SCREENSHOT: Individual risk card in the Dependency Risks list]**
 
-## Azure DevOps Pipeline Setup
+#### Opening the detailed view
 
-A common Azure DevOps setup uses the SonarQube extension tasks to prepare analysis, run the build, execute analysis, and publish the quality gate result.[1][6][7] At the platform level, SonarQube also supports Azure DevOps integration through the DevOps Platform Integrations settings, where an Azure DevOps configuration can be created in SonarQube administration.[1]
+Click the title of any risk to open its full detail page. The detail view contains:
 
-The basic implementation path is to create a SonarQube service connection in Azure DevOps, install the SonarQube extension, add the analysis tasks to the YAML pipeline, and then publish the quality gate result so the pipeline can reflect policy status.[6][7][8]
+- **What's the risk?** â€” CVSS severity score, KEV (known exploited) status, EPSS exploitability probability
+- **How can I fix it?** â€” Available fix versions classified as Complete fix, Partial fix, or Affected version
+- **Maintainer insights** â€” guidance from Sonar-partnered maintainers on real-world impact and workarounds
 
-### Typical YAML skeleton for Azure DevOps
+> ðŸ“¸ **[INSERT SCREENSHOT: Dependency risk detail page â€” "What's the risk?" tab open]**
 
-```yaml
-trigger:
-  branches:
-    include:
-      - main
-      - develop
-      - feature/*
+> ðŸ“¸ **[INSERT SCREENSHOT: Dependency risk detail page â€” "How can I fix it?" tab open showing fix versions]**
 
-pool:
-  vmImage: ubuntu-latest
+#### Managing risk status and assignment
 
-variables:
-  SONARQUBE_ENDPOINT: 'SonarQubeServiceConnection'
-  SONAR_PROJECT_KEY: 'your-project-key'
+1. From the risk list or detail page, click **Change Status**.
+2. Select the new status from the dropdown: **Confirmed**, **Accepted**, or **Safe**.
+3. For **Safe**, a mandatory justification must be provided in the text box.
+4. To assign the risk to a team member, click the **Unassigned** dropdown and type a name.
 
-steps:
-- task: SonarQubePrepare@5
-  displayName: Prepare SonarQube analysis
-  inputs:
-    SonarQube: '$(SONARQUBE_ENDPOINT)'
-    scannerMode: 'CLI'
-    configMode: 'manual'
-    cliProjectKey: '$(SONAR_PROJECT_KEY)'
-    cliProjectName: 'your-project-name'
-    cliSources: '.'
+> ðŸ“¸ **[INSERT SCREENSHOT: Change Status modal with dropdown and justification field]**
 
-- script: |
-    echo "Build and test steps go here"
-  displayName: Build and test
+### Risk severity model
 
-- task: SonarQubeAnalyze@5
-  displayName: Run SonarQube analysis
+| Severity | Criteria |
+|---|---|
+| Blocker | Vulnerability is on the CISA KEV list (actively exploited in the wild) |
+| High | EPSS > 5% AND CVSS > 7.0 |
+| Medium | EPSS > 0.5% (or no EPSS) AND CVSS > 4.0 |
+| Low | Any remaining vulnerability not fitting higher categories |
+| Info | Declared false positive by maintainer, or withdrawn by NIST/OSV |
 
-- task: SonarQubePublish@5
-  displayName: Publish quality gate result
-  inputs:
-    pollingTimeoutSec: '300'
-```
+### Prerequisites
 
-This pattern is enough to integrate the project into Azure DevOps and publish the quality gate status to the pipeline summary.[6][7][8] To make Advanced Security effective, the important next step is not just running analysis, but ensuring that dependency risk conditions are part of the quality gate used by the project.[1]
+- SonarQube Server Enterprise 2025.3+
+- Advanced Security add-on license
+- Outbound HTTPS from the SonarQube server to `api.sonarcloud.io`
 
-### Recommended Azure DevOps rollout sequence
+---
 
-1. Create the SonarQube service connection in Azure DevOps with the server URL and token.[6][8]
-2. Install or verify the SonarQube Azure DevOps extension.[7][8]
-3. Add `Prepare`, `Analyze`, and `Publish Quality Gate` tasks to the pipeline.[6][7]
-4. Enable Advanced Security features in SonarQube and confirm dependency analysis is active.[2][1]
-5. Create a custom quality gate with dependency risk thresholds.[1]
-6. Apply that gate to the relevant projects before enforcing branch or release policies.[1]
+## Feature 2 â€” Malicious Package Detection
 
-## How to Work with Each New Capability
+### What it does
 
-### Advanced SAST workflow
+Malicious package detection identifies dependencies that are known to contain active malware, not just known vulnerabilities. While SCA finds packages with security flaws, this feature flags packages that are themselves the attack vector.
 
-1. Run analysis in PRs and CI/CD so findings surface early.[3]
-2. Review data flow context and remediation guidance in SonarQube or connected review flows.[3]
-3. Fix the insecure flow, then rerun the pipeline to verify the quality gate passes.[3][1]
+### Why it matters
 
-### SCA workflow
+Supply chain attacks via malicious packages have grown significantly. A compromised package can exfiltrate credentials, execute arbitrary code, or compromise the build environment itself. These risks cannot be caught by CVE-based scanning alone because the package may not have any CVE record â€” it is simply malicious.
 
-1. Open the **Dependency Risks** tab for the project, application, or portfolio.[1]
-2. Filter by risk type, severity, direct versus transitive dependency, and production versus development scope.[1]
-3. Review the detailed risk page, including risk explanation and available fixes.[1]
-4. Assign, confirm, accept, or mark safe with justification as appropriate.[1]
+### How it works from the dashboard
 
-### SBOM workflow
+Malicious package findings always carry **Blocker** severity. They appear in the Dependency Risks panel under the **Malicious package** risk type filter.
 
-1. Review the dependency inventory and confirm direct and transitive packages are visible.[5]
-2. Export standardized dependency data when audit or downstream sharing is needed.[5]
-3. Use the exported inventory during incident response or release evidence preparation.[4][5]
+When a malicious package is detected, the **How can I fix it?** tab in the detail view provides specific response steps, including notifying the information security team, since any machine that installed the package should be considered compromised.
 
-### License policy workflow
+> ðŸ“¸ **[INSERT SCREENSHOT: Dependency Risks list filtered by "Malicious package" risk type showing a Blocker severity finding]**
 
-1. Define a license profile and policy at instance level.[1]
-2. Apply it to projects in scope.[1]
-3. Review prohibited license findings inside the dependency risk process and replace offending packages where needed.[1]
+> ðŸ“¸ **[INSERT SCREENSHOT: Malicious package detail page â€” "How can I fix it?" tab with remediation steps]**
 
-## Operational Recommendations
+### Prerequisites
 
-A strong rollout starts with visibility, then moves to controlled enforcement. Teams usually benefit from enabling analysis first, reviewing the first wave of dependency findings, defining ownership and triage rules, and only then turning on strict quality gate enforcement.[1]
+Included within SCA â€” same requirements apply. No additional configuration needed.
 
-The highest-value early controls are usually malicious package blocking, policy-based license checks, and quality gates on new dependency risks. That combination gives a fast security and governance return without requiring a large process redesign.[1][2]
+---
 
-## Summary
+## Feature 3 â€” License Management and Policy Enforcement
 
-For teams that already run base SonarQube, Advanced Security is not a replacement for existing analysis but a meaningful expansion of scope.[3][1] It adds software supply chain visibility, dependency governance, and cross-library data-flow analysis so teams can secure not only the code they write, but also the code they assemble into production systems.[2][4][1]
+### What it does
+
+License management scans the licenses of all project dependencies and validates them against configurable organizational policies. It automatically flags dependencies whose licenses are prohibited or incompatible before code reaches production.
+
+### Why it matters
+
+Open-source license risk is as real as security risk. Using a dependency with an incompatible license (such as a copyleft license like GPL in a proprietary product) can create legal exposure. Doing this check manually across dozens or hundreds of dependencies is not viable at development speed.
+
+### How to configure license policies
+
+License profiles and policies are configured by an instance administrator:
+
+1. Go to **Administration > Configuration > Advanced Security > License Profiles**.
+2. Select a predefined profile (e.g., *Permissive open-source licenses*) or create a custom one.
+3. Define which licenses are **allowed** and which are **prohibited**.
+4. Apply the profile to the relevant projects or the entire instance.
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Administration > License Profiles page showing predefined profiles list]**
+
+> ðŸ“¸ **[INSERT SCREENSHOT: License profile configuration â€” allowed/prohibited license list]**
+
+### Viewing license violations from the dashboard
+
+1. Open the **Dependency Risks** tab on any project.
+2. Filter by **Risk type: Prohibited license**.
+3. Each violation shows the dependency name, the detected license, and a link to resources about that license type.
+4. Resolution typically requires replacing the package with a compatible alternative.
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Dependency Risks list filtered by "Prohibited license" showing affected packages]**
+
+### Prerequisites
+
+- SonarQube Server Enterprise 2025.3+
+- Instance administrator access to configure license profiles
+- Same SCA connectivity requirements apply
+
+---
+
+## Feature 4 â€” SBOM (Software Bill of Materials)
+
+### What it does
+
+The SBOM feature generates and maintains a complete, traceable inventory of all software components in the project, including transitive dependencies. It is automatically populated as part of every SCA scan â€” no additional configuration is required.
+
+### Why it matters
+
+An SBOM is increasingly required by enterprise customers, regulators, and security frameworks. It answers the critical incident-response question: *"Where are we using this vulnerable library?"* â€” across all projects, instantly. It also supports audit processes and supply chain transparency requirements.
+
+### How to access and export the SBOM
+
+1. Open the project and navigate to **Inventory > Dependencies**.
+2. The full dependency tree is listed, including direct and transitive packages with version and license information.
+3. To export, click the **Export** button and select the desired format:
+   - **CycloneDX** (JSON or XML)
+   - **SPDX 2.3** (JSON or XML)
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Inventory > Dependencies tab showing the full dependency tree]**
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Export modal with format options â€” CycloneDX and SPDX]**
+
+### Downloading a full dependency risk report
+
+A risk-focused report (not just the SBOM) can also be downloaded for a project, application, or portfolio:
+
+1. From the **Project overview** page, click **Download dependency risk report**.
+2. The report is available in **JSON** and **CSV** format.
+3. A **VEX (Vulnerability Exploitability eXchange)** report is also available, which includes raw vulnerability detail and justifications for risks marked as Safe.
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Project overview page showing the "Download dependency risk report" option]**
+
+### Prerequisites
+
+- Included with SCA â€” no additional setup beyond enabling Advanced Security
+- SonarQube Server Enterprise 2025.3+
+
+---
+
+## Feature 5 â€” Advanced SAST
+
+### What it does
+
+Advanced SAST extends Sonar's existing taint analysis beyond first-party code and into third-party open-source libraries. It traces data flows across code boundaries â€” from user input through application code and into library functions â€” to uncover complex vulnerabilities that traditional SAST tools cannot detect because they treat external libraries as black boxes.
+
+### Why it matters
+
+Many real attack paths only become visible when the full interaction between application code and its dependencies is analyzed. For example, a SQL injection vulnerability may originate in application code, pass through a framework method, and reach a database sink inside a library. Without cross-library analysis, this path is invisible.
+
+### How it differs from base SAST
+
+| | Base SAST | Advanced SAST |
+|---|---|---|
+| Scope | First-party code only | First-party + third-party libraries |
+| Taint analysis boundary | Stops at library call | Crosses into and out of libraries |
+| Configuration required | No | No |
+| Performance impact | None | None |
+| Languages supported | 35+ | Java, C# (expanding per version) |
+| Internet required | No | No |
+
+### How findings appear in the dashboard
+
+Advanced SAST findings appear in the standard **Issues** view alongside regular security vulnerabilities. There is no separate panel â€” they are fully integrated into the existing workflow.
+
+To identify Advanced SAST findings:
+1. Open the **Issues** tab on a project.
+2. Filter by **Type: Vulnerability** and **Security category**.
+3. Look for issues whose data flow trace spans into library code â€” this is visible in the issue detail's code flow visualization.
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Issues list filtered by Vulnerability type, showing a finding from Advanced SAST]**
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Issue detail page with code flow visualization showing the data path crossing into a third-party library]**
+
+### Prerequisites
+
+- SonarQube Server Enterprise 2025.3+
+- Advanced Security add-on license
+- No connectivity requirements â€” analysis runs locally in the scanner
+- Current language support: **Java** and **C#** (Python top-1000 libraries added in 2026.2)
+
+---
+
+## Feature 6 â€” Dependency-Aware Quality Gates
+
+### What it does
+
+Quality Gates can now include conditions based on dependency risks â€” vulnerability count, malicious package detection, and prohibited license violations â€” in addition to the existing code quality and SAST conditions. This turns dependency findings into enforceable pipeline controls.
+
+### Why it matters
+
+Without Quality Gate integration, dependency findings are visible in the dashboard but do not block deployments. Adding dependency conditions creates an automatic go/no-go gate: a build with a malicious package or a critical vulnerability can be blocked before it reaches any environment.
+
+### How to configure a dependency-aware Quality Gate
+
+> âš ï¸ After enabling Advanced Security, a new custom Quality Gate must be created manually. The default gate does not include dependency risk conditions.
+
+1. Go to **Administration > Quality Gates**.
+2. Click **Create** to define a new gate, or copy an existing one.
+3. Click **Add Condition** and select from the dependency risk metrics:
+   - **Dependency vulnerabilities** â€” set threshold by count and/or severity
+   - **Malicious packages** â€” recommended: fail on any finding (threshold = 0)
+   - **Prohibited licenses** â€” recommended: fail on any finding (threshold = 0)
+4. Choose whether the condition applies to **New Code** or **Overall Code**.
+5. Assign the Quality Gate to the relevant projects.
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Quality Gate administration page â€” Add Condition dropdown showing dependency risk options]**
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Quality Gate conditions list showing configured dependency risk thresholds]**
+
+### Recommended initial configuration
+
+| Condition | Threshold | Applies to |
+|---|---|---|
+| Malicious packages | 0 (any finding fails) | Overall code |
+| Prohibited licenses | 0 (any finding fails) | Overall code |
+| New dependency vulnerabilities â€” Blocker | 0 | New code |
+| New dependency vulnerabilities â€” High | 0â€“5 (tune based on team capacity) | New code |
+
+---
+
+## Feature 7 â€” Continual Dependency Re-Analysis
+
+### What it does
+
+Once a branch has been analyzed with SCA at least once, SonarQube Advanced Security re-analyzes its dependencies automatically on a scheduled basis â€” without requiring a new commit or pipeline run. New CVEs published after the last scan are surfaced as new findings automatically.
+
+### Why it matters
+
+Vulnerability databases are updated continuously. A dependency that was safe at the time of the last commit can become vulnerable the next day when a new CVE is published. Without continual re-analysis, teams would only discover this risk the next time a developer commits code.
+
+### How to configure re-analysis schedules
+
+1. Go to **Administration > Configuration > Advanced Security > Configure Branch Rescanning**.
+2. Set the **frequency**: daily, weekly, or disabled.
+3. Select which branches are re-scanned: main branch only, all permanent branches, or all branches.
+
+> ðŸ“¸ **[INSERT SCREENSHOT: Administration > Advanced Security > Configure Branch Rescanning settings page]**
+
+---
+
+## Connectivity and Infrastructure Summary
+
+| Component | Needs internet? | Why |
+|---|---|---|
+| SonarQube Server | Yes â€” HTTPS to `api.sonarcloud.io` | SCA dependency processing happens in Sonar's cloud |
+| CI/CD Agents | No change | Scanner sends manifests to the server, not to Sonar cloud directly |
+| Advanced SAST | No | Analysis runs locally in the scanner process |
+| Air-gapped environments | SCA not supported | No offline mode available for dependency analysis |
+
+---
+
+## Version Compatibility Reference
+
+| Version | Advanced Security available | Notes |
+|---|---|---|
+| 9.9.x, 10.x | âŒ No | Not supported regardless of license |
+| 2025.1, 2025.2 | âŒ No | Predates GA release |
+| **2025.3** | âœ… First GA version | SCA, Advanced SAST, SBOM, License management |
+| **2025.4 (LTA)** | âœ… Yes | Supported until January 2027 |
+| **2026.1 (LTA current)** | âœ… Yes | Recommended â€” supported until August 2027 |
+| **2026.2** | âœ… Yes | Adds Python top-1000 Advanced SAST, SCA in compliance reports |
